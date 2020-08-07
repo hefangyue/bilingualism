@@ -1,0 +1,97 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+ 
+```{r setup, include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(openxlsx)
+
+d<-read.xlsx("C:/Users/hp/Desktop/SDS/session/2/data.xlsx",sheet = 1)
+d
+```
+
+##replace the missing values into NA
+```{r}
+d_na = d %>%
+  select(-c("bilec_home_output","bilec_english_output","bilec_total_output","bilec_home_input",
+            "bilec_english_input","age_acquisition","where_english","SCQ"))%>%
+  mutate(pvt_mean_rt = as.numeric(as.character(pvt_mean_rt)),
+         pvt_mean_lapse_rt = ifelse(pvt_number_of_lapses==0, 0, pvt_mean_lapse_rt)) %>%
+  mutate_if(is.numeric, list(~na_if(., 888)))%>%
+  rename(brief_raw_self_monitor=`brief_raw_self-monitor`)
+d_na
+
+table(is.na(d_na))
+
+factor_binary = c(0,1)
+factor_20_dec = c(seq(0,20, by=.1),NA)
+
+d_na %>%
+  summarise_all(funs(sum(is.na(.)))) %>%
+  select(contains("pvt"))
+```
+
+##exploration data
+```{r}
+language_com<-d_na%>%select(bpvs_raw,vocabprocess_processing_speed_target,wasi_sum_rawscores)%>%na.omit()
+social_rep_com<-d_na%>%select(c(contains("tom")))%>%na.omit()
+social_et_com<-d_na%>%select(c(contains("et_")))%>%na.omit()
+ececutive_brief_com<-d_na%>%select(c(contains("brief")))%>%na.omit()
+ececutive_flanker_com<-d_na%>%select(c(contains("flanker")))%>%na.omit()
+ececutive_pvt_com<-d_na%>%select(c(contains("pvt")))%>%na.omit()
+
+
+GGally::ggpairs(language_com, progress = F)
+GGally::ggpairs(social_rep_com, progress = F)
+GGally::ggpairs(social_et_com, progress = F)
+GGally::ggpairs(ececutive_brief_com, progress = F)
+GGally::ggpairs(ececutive_flanker_com, progress = F)
+GGally::ggpairs(ececutive_pvt_com, progress = F)
+```
+
+##missing values pattern
+```{r}
+mice::md.pattern(d_na)
+VIM::aggr(d_na, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+##imputation
+```{r}
+imp<-mice(d_na,m=5,meth='rf',print=FALSE)
+# densityplot(imp)
+d_imp<-complete(imp,include=F,action=5)
+write.table (d_imp, file ="C:\\Users\\hp\\Desktop\\SDS\\session\\2\\imputation.csv", sep =",", row.names =FALSE)
+```
+
+##seperate dataset by non-autistic and autistic children
+```{r}
+d_imp2<-d_imp%>%mutate(mean_brief=(brief_raw_inhibit+brief_raw_self_monitor+brief_raw_shift+brief_raw_emotional_control+brief_raw_initiate+brief_raw_working_memory+brief_raw_plan_organise+brief_raw_task_monitor+brief_raw_organisation_of_materials)/9)%>%mutate(mean_tomi=(tomi_early+tomi_basic+tomi_advanced)/3)
+# d_imp2$diagnosis<-as.factor(d_imp2$diagnosis)
+scale_d<-as.data.frame(scale(d_imp2))
+
+
+scale_d$diagnosis[which(scale_d$diagnosis<0)]<-0
+scale_d$diagnosis[which(scale_d$diagnosis>0)]<-1
+scale_d$diagnosis<-as.factor(scale_d$diagnosis)
+d_non_au<-scale_d[which(scale_d$diagnosis==0),]
+d_au<-scale_d[which(scale_d$diagnosis==1),]
+```
+
+
+##Test Multicollinearity
+```{r}
+d_imp2%>%select(vocabprocess_processing_speed_target,bpvs_raw)%>%kappa()
+
+
+d_imp2%>%select(tomi_early,tomi_basic,tomi_advanced,tomi_compmean,tom_tb_totalscore,et_figurestask_dwell_time_interacting,et_figurestask_dwell_time_not_interacting,et_falsebelief_Testtrial_dwell_time_to_correct,et_falsebelief_testtrial_dwell_time_to_incorrect,et_falsebelief_testtrial_preference_score)%>%kappa()
+d_imp2%>%select(tomi_compmean,et_figurestask_dwell_time_interacting,et_falsebelief_Testtrial_dwell_time_to_correct,tom_tb_totalscore)%>%kappa()
+
+d_imp2%>%select(brief_raw_inhibit,brief_raw_self_monitor,brief_raw_shift,brief_raw_emotional_control,brief_raw_initiate,brief_raw_working_memory,brief_raw_plan_organise,brief_raw_task_monitor,brief_raw_organisation_of_materials,flanker_percenterrors_congruent,flanker_percenterrors_incongruent,flanker_mean_rt_congruent,flanker_mean_rt_incongruent,pvt_mean_rt,pvt_mean_lapse_rt,pvt_count_falsestarts,pvt_number_of_lapses)%>%kappa()
+d_imp2%>%select(mean_brief,flanker_percenterrors_congruent,flanker_percenterrors_incongruent,flanker_mean_rt_congruent,flanker_mean_rt_incongruent,pvt_mean_rt,pvt_mean_lapse_rt,pvt_number_of_lapses)%>%kappa()
+```

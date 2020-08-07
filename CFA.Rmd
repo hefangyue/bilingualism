@@ -1,0 +1,209 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(lavaan)
+library(semPlot)
+```
+
+##CFA single input model
+```{r}
+model<-'
+        ##latent variables
+        language=~NA*bpvs_raw+vocabprocess_processing_speed_target
+        social=~NA*tomi_early+tomi_basic+tomi_advanced+et_figurestask_dwell_time_interacting+et_falsebelief_Testtrial_dwell_time_to_correct
+        exe=~NA*mean_brief+flanker_percenterrors_congruent+flanker_percenterrors_incongruent+flanker_mean_rt_congruent+flanker_mean_rt_incongruent+pvt_mean_rt+pvt_number_of_lapses
+        
+       ##latent covariances
+        language~~1*language
+        social~~1*social
+        exe~~1*exe
+
+
+        ##regression
+        language~bilec_total_input
+        social~bilec_total_input
+        exe~bilec_total_input'
+
+
+
+cfa_fit<-cfa(model,data=scale_d)
+summary(cfa_fit, standardized = TRUE, fit.measures = TRUE, rsquare = TRUE)
+semPaths(cfa_fit,what =  'est', layout = 'tree')
+semPaths(cfa_fit,what =  'std', layout = 'tree')
+fitmeasures(cfa_fit,c('chisq','df','pvalue','gfi','rmsea','cfi','aic','tli'))
+```
+
+##improve the model
+```{r}
+mf <- modificationindices(cfa_fit)
+mf <- mf[order(mf$mi, mf$epc, decreasing = TRUE), ]    #ordered by MI
+mf
+```
+
+##extract the CFA results
+```{r}
+cfa_value<-lavPredict(cfa_fit)
+```
+
+##language regression
+```{r}
+language_lm_non_au<-lm(cfa_value[1:51,1]~bilec_total_input,data=d_non_au)
+summary(language_lm_non_au)
+language_lm_au<-lm(cfa_value[52:89,1]~bilec_total_input,data=d_au)
+summary(language_lm_au)
+```
+##social regression
+```{r}
+social_lm_non_au<-lm(cfa_value[1:51,2]~bilec_total_input,data=d_non_au)
+summary(social_lm_non_au)
+social_lm_au<-lm(cfa_value[52:89,2]~bilec_total_input,data=d_au)
+summary(social_lm_au)
+```
+
+##exe regression
+```{r}
+exe_lm_non_au<-lm(cfa_value[1:51,3]~bilec_total_input,data=d_non_au)
+summary(exe_lm_non_au)
+
+exe_lm_au<-lm(cfa_value[52:89,3]~bilec_total_input,data=d_au)
+summary(exe_lm_au)
+```
+
+
+
+
+
+
+
+## CFA multiple input model
+```{r}
+model2<-'
+        ##latent variables
+        language=~NA*bpvs_raw+vocabprocess_processing_speed_target
+        social=~NA*tomi_early+tomi_basic+tomi_advanced+et_figurestask_dwell_time_interacting+et_falsebelief_Testtrial_dwell_time_to_correct
+        exe=~NA*mean_brief+flanker_percenterrors_congruent+flanker_percenterrors_incongruent+flanker_mean_rt_congruent+flanker_mean_rt_incongruent+pvt_mean_rt+pvt_number_of_lapses
+        
+       ##latent covariances
+        language~~1*language
+        social~~1*social
+        exe~~1*exe
+
+        ##regression
+        language~bilec_total_input+wasi_sum_rawscores+age_m+gender
+        social~bilec_total_input+wasi_sum_rawscores+age_m+gender
+        exe~bilec_total_input+wasi_sum_rawscores+age_m+gender'
+
+
+
+cfa_fit2<-cfa(model2,data=scale_d)
+summary(cfa_fit2, standardized = TRUE, fit.measures = TRUE, rsquare = TRUE)
+semPaths(cfa_fit2,what =  'est', layout = 'tree')
+semPaths(cfa_fit2,what =  'std', layout = 'tree')
+fitmeasures(cfa_fit2,c('chisq','df','pvalue','gfi','rmsea','cfi','aic','tli'))
+```
+##improve the model
+```{r}
+mf2 <- modificationindices(cfa_fit2)
+mf2 <- mf2[order(mf2$mi, mf2$epc, decreasing = TRUE), ]    #ordered by MI
+mf2
+```
+##extract the CFA results
+```{r}
+cfa_value2<-lavPredict(cfa_fit2)
+```
+
+
+##language regression
+```{r}
+language_lm_non_au2<-lm(cfa_value2[1:51,1]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_non_au)
+summary(language_lm_non_au2)
+step(language_lm_non_au2,trace=1)
+```
+```{r}
+y.res=resid(language_lm_non_au2)
+yfit=predict(language_lm_non_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,8),x=c(-3:4),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim = c(-3,3.5))
+points(cfa_value2[1:51,1],type='b')
+```
+
+```{r}
+language_lm_au2<-lm(cfa_value2[52:89,1]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_au)
+summary(language_lm_au2)
+step(language_lm_au2,trace=1)
+```
+
+```{r}
+y.res=resid(language_lm_au2)
+yfit=predict(language_lm_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,21),x=c(-10:10),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim=c(-6.5,6))
+points(cfa_value2[52:89,1],type='b')
+```
+
+##social regression
+```{r}
+social_lm_non_au2<-lm(cfa_value2[1:51,2]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_non_au)
+summary(social_lm_non_au2)
+step(social_lm_non_au2,trace=1)
+```
+```{r}
+y.res=resid(social_lm_non_au2)
+yfit=predict(social_lm_non_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,8),x=c(-3:4),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim = c(-1,2))
+points(cfa_value2[1:51,2],type='b')
+```
+
+```{r}
+social_lm_au2<-lm(cfa_value2[52:89,2]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_au)
+summary(social_lm_au2)
+step(social_lm_au2,trace=1)
+```
+```{r}
+y.res=resid(social_lm_au2)
+yfit=predict(social_lm_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,8),x=c(-3:4),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim = c(-3.5,1))
+points(cfa_value2[52:89,2],type='b')
+```
+
+
+##exe regression
+```{r}
+exe_lm_non_au2<-lm(cfa_value2[1:51,3]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_non_au)
+summary(exe_lm_non_au2)
+step(exe_lm_non_au2,trace=1)
+```
+```{r}
+y.res=resid(exe_lm_non_au2)
+yfit=predict(exe_lm_non_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,9),x=c(-4:4),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim = c(-2.5,2.7))
+points(cfa_value2[1:51,3],type='b')
+```
+
+```{r}
+
+exe_lm_au2<-lm(cfa_value2[52:89,3]~bilec_total_input+wasi_sum_rawscores+age_m+gender,data=d_au)
+summary(exe_lm_au2)
+step(exe_lm_au2,trace=1)
+```
+```{r}
+y.res=resid(exe_lm_au2)
+yfit=predict(exe_lm_au2)
+plot(y.res~yfit)#residual
+lines(y=rep(0,9),x=c(-4:4),col="grey",type="l",lty=2)
+plot(yfit,type='b',col="red",ylim = c(-3.7,5.2))
+points(cfa_value2[52:89,3],type='b')
+```
